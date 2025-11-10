@@ -6,8 +6,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Google Apps Script URL
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby9TMUnxI0BnhAURQLMxAFAj_sWnO24O84JOZvynv3K1WkPF2_RgR5JfSvmS2RVZl_j/exec";
+// Tvoj Google Apps Script URL
+const GOOGLE_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycby9TMUnxI0BnhAURQLMxAFAj_sWnO24O84JOZvynv3K1WkPF2_RgR5JfSvmS2RVZl_j/exec";
 
 // test ruta
 app.get("/", (req, res) => {
@@ -41,7 +42,5 @@ app.post("/api", async (req, res) => {
   }
 });
 
-// ✅ Ključni deo — moraš eksplicitno exportovati kao handler
-export default (req, res) => {
-  return app(req, res);
-};
+// Vercel zahteva eksplicitni export handlera
+export default app;
