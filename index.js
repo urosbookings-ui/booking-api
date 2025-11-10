@@ -6,6 +6,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ✅ Ručno odgovorimo na OPTIONS (CORS preflight)
+app.options("*", (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.status(200).end();
+});
+
 // 🔗 Tvoj Google Apps Script Web App URL
 const GOOGLE_SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycby9TMUnxI0BnhAURQLMxAFAj_sWnO24O84JOZvynv3K1WkPF2_RgR5JfSvmS2RVZl_j/exec";
@@ -43,7 +51,7 @@ app.post("/api", async (req, res) => {
       return res.status(502).json({
         ok: false,
         error: "Google Script returned HTML instead of JSON",
-        htmlSnippet: text.slice(0, 200)
+        htmlSnippet: text.slice(0, 200),
       });
     }
 
@@ -55,7 +63,7 @@ app.post("/api", async (req, res) => {
       return res.status(500).json({
         ok: false,
         error: "Invalid JSON from Google Script",
-        rawSnippet: text.slice(0, 200)
+        rawSnippet: text.slice(0, 200),
       });
     }
 
