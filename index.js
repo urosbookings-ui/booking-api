@@ -1,15 +1,15 @@
 import express from "express";
-import cors from "cors";
 import fetch from "node-fetch";
+import cors from "cors";
+import { createServer } from "@vercel/node";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const GOOGLE_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycby9TMUnxI0BnhAURQLMxAFAj_sWnO24O84JOZvynv3K1WkPF2_RgR5JfSvmS2RVZl_j/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby9TMUnxI0BnhAURQLMxAFAj_sWnO24O84JOZvynv3K1WkPF2_RgR5JfSvmS2RVZl_j/exec";
 
-// Test ruta
+// test ruta
 app.get("/", (req, res) => {
   res.json({ ok: true, msg: "Booking proxy API radi na Vercelu 🚀" });
 });
@@ -41,9 +41,5 @@ app.post("/api", async (req, res) => {
   }
 });
 
-// Port za Vercel
-app.listen(3000, () => {
-  console.log("Server running on port 3000 🚀");
-});
-
-export default app;
+// ovo je ključno za Vercel
+export default createServer(app);
