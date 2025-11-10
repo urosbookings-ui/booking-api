@@ -4,7 +4,7 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-// ✅ Ručni CORS middleware – dozvoljavamo samo Framer domen i localhost
+// ✅ Ručni CORS middleware – dozvoljavamo samo Framer i localhost
 app.use((req, res, next) => {
   const allowedOrigins = [
     "https://urosbarbershop.framer.website",
@@ -28,11 +28,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// 🔗 Tvoj Google Apps Script Web App URL
+// 🔗 Google Apps Script URL
 const GOOGLE_SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycby9TMUnxI0BnhAURQLMxAFAj_sWnO24O84JOZvynv3K1WkPF2_RgR5JfSvmS2RVZl_j/exec";
 
-// ✅ Test ruta za proveru
+// ✅ Test ruta
 app.get("/", (req, res) => {
   res.json({ ok: true, msg: "Booking proxy API radi na Vercelu 🚀" });
 });
@@ -44,7 +44,6 @@ app.get("/api", async (req, res) => {
     const response = await fetch(`${GOOGLE_SCRIPT_URL}?${query}`);
     const text = await response.text();
 
-    // Ako Google Script vrati HTML, vrati grešku
     if (text.trim().startsWith("<")) {
       return res.status(502).json({
         ok: false,
@@ -72,7 +71,6 @@ app.post("/api", async (req, res) => {
 
     const text = await response.text();
 
-    // Ako Google Script vrati HTML (npr. grešku)
     if (text.trim().startsWith("<")) {
       return res.status(502).json({
         ok: false,
@@ -99,5 +97,6 @@ app.post("/api", async (req, res) => {
   }
 });
 
-// 🚀 Vercel handler export
-export default app;
+// ✅ Ključni deo: eksplicitni handler za Vercel
+const handler = app;
+export default handler;
