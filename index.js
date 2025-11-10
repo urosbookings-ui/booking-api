@@ -7,14 +7,15 @@ app.use(cors());
 app.use(express.json());
 
 // Tvoj Google Apps Script URL
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby9TMUnxI0BnhAURQLMxAFAj_sWnO24O84JOZvynv3K1WkPF2_RgR5JfSvmS2RVZl_j/exec";
+const GOOGLE_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycby9TMUnxI0BnhAURQLMxAFAj_sWnO24O84JOZvynv3K1WkPF2_RgR5JfSvmS2RVZl_j/exec";
 
-// Test ruta da proveriš da sve radi
+// Test ruta — da proveriš da API radi
 app.get("/", (req, res) => {
   res.json({ ok: true, msg: "Booking proxy API radi na Vercelu 🚀" });
 });
 
-// GET proxy — koristi se za slots itd.
+// GET proxy — koristi se za slots i slične upite
 app.get("/api", async (req, res) => {
   try {
     const query = new URLSearchParams(req.query).toString();
@@ -42,3 +43,4 @@ app.post("/api", async (req, res) => {
 });
 
 export default app;
+export const config = { runtime: "edge" };
