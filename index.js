@@ -1,32 +1,32 @@
 import express from "express";
 import fetch from "node-fetch";
-import cors from "cors";
 
 const app = express();
-
-// ✅ Dozvoljavamo samo Framer domen i lokalni test
-const allowedOrigins = [
-  "https://urosbarbershop.framer.website",
-  "https://framer.com",
-  "http://localhost:3000"
-];
-
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.warn("❌ Blocked CORS request from:", origin);
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type"],
-  })
-);
-
 app.use(express.json());
+
+// ✅ Ručni CORS middleware – dozvoljavamo samo Framer domen i localhost
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    "https://urosbarbershop.framer.website",
+    "https://framer.com",
+    "http://localhost:3000",
+  ];
+
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
+
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  next();
+});
 
 // 🔗 Tvoj Google Apps Script Web App URL
 const GOOGLE_SCRIPT_URL =
@@ -42,8 +42,9 @@ app.get("/api", async (req, res) => {
   try {
     const query = new URLSearchParams(req.query).toString();
     const response = await fetch(`${GOOGLE_SCRIPT_URL}?${query}`);
-
     const text = await response.text();
+
+    // Ako Google Script vrati HTML, vrati grešku
     if (text.trim().startsWith("<")) {
       return res.status(502).json({
         ok: false,
@@ -60,7 +61,7 @@ app.get("/api", async (req, res) => {
   }
 });
 
-// ✅ POST proxy — hvata i HTML, ne ruši Framer formu
+// ✅ POST proxy
 app.post("/api", async (req, res) => {
   try {
     const response = await fetch(GOOGLE_SCRIPT_URL, {
@@ -71,7 +72,7 @@ app.post("/api", async (req, res) => {
 
     const text = await response.text();
 
-    // Ako Google Script vrati HTML (npr. grešku), detektujemo po "<!DOCTYPE"
+    // Ako Google Script vrati HTML (npr. grešku)
     if (text.trim().startsWith("<")) {
       return res.status(502).json({
         ok: false,
@@ -80,7 +81,6 @@ app.post("/api", async (req, res) => {
       });
     }
 
-    // Inače pokušavamo da parsiramo JSON
     let data;
     try {
       data = JSON.parse(text);
