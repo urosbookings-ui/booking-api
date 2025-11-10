@@ -3,16 +3,30 @@ import fetch from "node-fetch";
 import cors from "cors";
 
 const app = express();
-app.use(cors());
-app.use(express.json());
 
-// ✅ Ručno odgovorimo na OPTIONS (CORS preflight)
-app.options("*", (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.status(200).end();
-});
+// ✅ Dozvoljavamo samo Framer domen i lokalni test
+const allowedOrigins = [
+  "https://urosbarbershop.framer.website",
+  "https://framer.com",
+  "http://localhost:3000"
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn("❌ Blocked CORS request from:", origin);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
+
+app.use(express.json());
 
 // 🔗 Tvoj Google Apps Script Web App URL
 const GOOGLE_SCRIPT_URL =
@@ -28,9 +42,20 @@ app.get("/api", async (req, res) => {
   try {
     const query = new URLSearchParams(req.query).toString();
     const response = await fetch(`${GOOGLE_SCRIPT_URL}?${query}`);
-    const data = await response.json();
+
+    const text = await response.text();
+    if (text.trim().startsWith("<")) {
+      return res.status(502).json({
+        ok: false,
+        error: "Google Script returned HTML instead of JSON",
+        htmlSnippet: text.slice(0, 200),
+      });
+    }
+
+    const data = JSON.parse(text);
     res.json(data);
   } catch (err) {
+    console.error("❌ GET /api error:", err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
@@ -69,6 +94,7 @@ app.post("/api", async (req, res) => {
 
     res.json(data);
   } catch (err) {
+    console.error("❌ POST /api error:", err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
