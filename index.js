@@ -27,7 +27,7 @@ app.get("/api", async (req, res) => {
   }
 });
 
-// POST proxy
+// ✅ POST proxy — bez rušenja ako GAS pošalje HTML
 app.post("/api", async (req, res) => {
   try {
     const response = await fetch(GOOGLE_SCRIPT_URL, {
@@ -35,7 +35,20 @@ app.post("/api", async (req, res) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req.body),
     });
-    const data = await response.json();
+
+    const text = await response.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return res.status(500).json({
+        ok: false,
+        error: "Invalid JSON from Google Script",
+        raw: text.slice(0, 200)
+      });
+    }
+
     res.json(data);
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
