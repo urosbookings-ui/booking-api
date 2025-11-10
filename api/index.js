@@ -1,8 +1,4 @@
-import express from "express";
 import fetch from "node-fetch";
-import cors from "cors";
-
-const app = express();
 
 // ✅ Dozvoljeni domeni
 const allowedOrigins = [
@@ -11,73 +7,70 @@ const allowedOrigins = [
   "http://localhost:3000"
 ];
 
-// ✅ CORS middleware
-app.use((req, res, next) => {
+// 🔗 Tvoj Google Apps Script Web App URL
+const GOOGLE_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycby9TMUnxI0BnhAURQLMxAFAj_sWnO24O84JOZvynv3K1WkPF2_RgR5JfSvmS2RVZl_j/exec";
+
+// ✅ Glavni handler (Vercel funkcija)
+export default async function handler(req, res) {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  // 🔸 OPTIONS (CORS preflight)
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
-  next();
-});
 
-app.use(express.json());
+  // 🔹 Test ruta
+  if (req.url === "/" || req.query.test) {
+    return res
+      .status(200)
+      .json({ ok: true, msg: "Booking API radi i CORS je aktivan 🚀" });
+  }
 
-// 🔗 Tvoj Google Apps Script URL
-const GOOGLE_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycby9TMUnxI0BnhAURQLMxAFAj_sWnO24O84JOZvynv3K1WkPF2_RgR5JfSvmS2RVZl_j/exec";
-
-// ✅ Test ruta
-app.get("/", (req, res) => {
-  res.json({ ok: true, msg: "Booking API radi i CORS je aktivan 🚀" });
-});
-
-// ✅ GET proxy
-app.get("/api", async (req, res) => {
   try {
-    const query = new URLSearchParams(req.query).toString();
-    const response = await fetch(`${GOOGLE_SCRIPT_URL}?${query}`);
-    const text = await response.text();
+    if (req.method === "GET") {
+      // Proxy GET zahteva
+      const query = new URLSearchParams(req.query).toString();
+      const response = await fetch(`${GOOGLE_SCRIPT_URL}?${query}`);
+      const text = await response.text();
 
-    if (text.trim().startsWith("<")) {
-      return res.status(502).json({ ok: false, error: "HTML umesto JSON" });
+      if (text.trim().startsWith("<")) {
+        return res
+          .status(502)
+          .json({ ok: false, error: "HTML umesto JSON", snippet: text.slice(0, 200) });
+      }
+
+      const data = JSON.parse(text);
+      return res.status(200).json(data);
     }
 
-    const data = JSON.parse(text);
-    res.json(data);
-  } catch (err) {
-    console.error("❌ GET /api error:", err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
+    if (req.method === "POST") {
+      // Proxy POST zahteva
+      const response = await fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req.body),
+      });
 
-// ✅ POST proxy
-app.post("/api", async (req, res) => {
-  try {
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req.body),
-    });
+      const text = await response.text();
+      if (text.trim().startsWith("<")) {
+        return res
+          .status(502)
+          .json({ ok: false, error: "HTML umesto JSON", snippet: text.slice(0, 200) });
+      }
 
-    const text = await response.text();
-    if (text.trim().startsWith("<")) {
-      return res.status(502).json({ ok: false, error: "HTML umesto JSON" });
+      const data = JSON.parse(text);
+      return res.status(200).json(data);
     }
 
-    const data = JSON.parse(text);
-    res.json(data);
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
   } catch (err) {
-    console.error("❌ POST /api error:", err);
-    res.status(500).json({ ok: false, error: err.message });
+    console.error("❌ API greška:", err);
+    return res.status(500).json({ ok: false, error: err.message });
   }
-});
-
-// ✅ Umesto "export default app", Vercel mora da vidi handler
-export default function handler(req, res) {
-  app(req, res);
 }
