@@ -24,7 +24,7 @@ export default async function handler(req, res) {
   }
 
   // 🔗 Tvoj Google Apps Script Web App URL
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxF9c70WbZV1Pwcde2ePl0yy7dMYwb9-Qs78UoA7bOfaItUwb15n19pXJ71IRJ91N4/exec";
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzo85Vq2DU30Fm67i0NmtsjRbGhh9qJiCEryu6RhIsWa0bAFs6pXZn8QDdh-znN8IW2/exec";
 
 
   try {
