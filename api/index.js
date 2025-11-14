@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
   // 🔗 Tvoj Google Apps Script URL
   const GOOGLE_SCRIPT_URL =
-    "https://script.google.com/macros/s/AKfycbxwRoC7K8gmXzlsDD7QtvQRB4sc2op-iWGP6qlGL-3H5Jn-BpOncalSGwFa9vV8orTx/exec";
+    "https://script.google.com/macros/s/AKfycbxKCOnUxevY0wVQYZMR7dQJMwJumWheEwkIaPkqo8CMx0HDho7ecqU7cMKgT_VZyhrG/exec";
 
   try {
     // ✅ GET zahtev
