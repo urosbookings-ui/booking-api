@@ -60,13 +60,24 @@ export default async function handler(req, res) {
 
   // -------- GET Handler (slots, etc.) --------
   if (req.method === "GET") {
-    // Minimalna validacija za slotove
-    if (req.query.action === "slots" && (!req.query.barber || !req.query.date)) {
-      return res.status(400).json({ ok: false, error: "Nedostaje barber ili date" });
+    // 🔥 Ovo 100% radi na Vercelu — sigurno parsira query string
+    const params = new URL(req.url, `http://${req.headers.host}`).searchParams;
+    const action = params.get("action");
+
+    // Validacija slotova
+    if (action === "slots") {
+      const barber = params.get("barber");
+      const date = params.get("date");
+
+      if (!barber || !date) {
+        return res.status(400).json({ ok: false, error: "Nedostaje barber ili date" });
+      }
     }
 
-    const queryString = new URLSearchParams(req.query).toString();
+    // Prosleđivanje GAS-u
+    const queryString = params.toString();
     const resp = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?${queryString}`);
+
     if (!resp.ok) return res.status(502).json(resp);
     return res.status(200).json(resp.data);
   }
