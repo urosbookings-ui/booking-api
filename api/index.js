@@ -2,19 +2,17 @@ export default async function handler(req, res) {
   const GOOGLE_SCRIPT_URL =
     "https://script.google.com/macros/s/AKfycbxKCOnUxevY0wVQYZMR7dQJMwJumWheEwkIaPkqo8CMx0HDho7ecqU7cMKgT_VZyhrG/exec";
 
-  // CORS
+  // -------- CORS --------
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  // SAFETY FETCH (za POST/GET JSON)
-  async function safeFetch(url, options = {}) {
+  // -------- Helpers --------
+  async function safeFetchJSON(url, options = {}) {
     try {
       const r = await fetch(url, options);
       const text = await r.text();
-
-      // pokuša da parsira JSON
       try {
         const json = JSON.parse(text);
         return { ok: true, data: json };
@@ -26,37 +24,62 @@ export default async function handler(req, res) {
     }
   }
 
-  // ============ CANCEL HANDLER =============
-  if (req.method === "GET" && req.query.action === "cancel") {
-    const id = req.query.bookingId;
+  async function safeFetchText(url, options = {}) {
+    try {
+      const r = await fetch(url, options);
+      const text = await r.text();
+      return { ok: true, text };
+    } catch (e) {
+      return { ok: false, error: e.message || "Fetch error" };
+    }
+  }
 
-    // Direktno fetch GAS i uzmi plain text
-    const upstream = await fetch(
-      `${GOOGLE_SCRIPT_URL}?action=cancel&bookingId=${id}`
-    );
-    const text = await upstream.text();
+  // -------- CANCEL Handler --------
+  if (req.method === "GET" && req.query.action === "cancel") {
+    const bookingId = req.query.bookingId;
+    if (!bookingId) {
+      return res.status(400).send(`
+        <html><body style="font-family:Arial;padding:40px;">
+          <h2>❌ Nedostaje bookingId</h2>
+        </body></html>
+      `);
+    }
+
+    const resp = await safeFetchText(`${GOOGLE_SCRIPT_URL}?action=cancel&bookingId=${bookingId}`);
+    let msg = "✅ Termin uspešno otkazan.";
+    if (!resp.ok) msg = "⚠️ Greška prilikom otkazivanja.";
 
     return res.status(200).send(`
       <html>
         <body style="font-family: Arial; padding: 40px;">
-          <h2>${text}</h2>
+          <h2>${msg}</h2>
         </body>
       </html>
     `);
   }
 
-  // ============ GET (slots, slotsSummary, itd.) ============
+  // -------- GET Handler (slots, etc.) --------
   if (req.method === "GET") {
-    const query = new URLSearchParams(req.query).toString();
-    const resp = await safeFetch(`${GOOGLE_SCRIPT_URL}?${query}`);
+    // Minimalna validacija za slotove
+    if (req.query.action === "slots" && (!req.query.barber || !req.query.date)) {
+      return res.status(400).json({ ok: false, error: "Nedostaje barber ili date" });
+    }
 
+    const queryString = new URLSearchParams(req.query).toString();
+    const resp = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?${queryString}`);
     if (!resp.ok) return res.status(502).json(resp);
     return res.status(200).json(resp.data);
   }
 
-  // ============ POST (rezervacija) ============
+  // -------- POST Handler (booking) --------
   if (req.method === "POST") {
-    const resp = await safeFetch(GOOGLE_SCRIPT_URL, {
+    const { name, email, phone, service, barber, dateStr, timeStr } = req.body || {};
+
+    if (!name || !email || !phone || !service || !barber || !dateStr || !timeStr) {
+      return res.status(400).json({ ok: false, error: "Nedostaju obavezna polja" });
+    }
+
+    const resp = await safeFetchJSON(GOOGLE_SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req.body),
@@ -66,6 +89,6 @@ export default async function handler(req, res) {
     return res.status(200).json(resp.data);
   }
 
-  // ============ DEFAULT ============
+  // -------- Default --------
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
