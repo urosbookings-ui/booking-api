@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  // SAFETY FETCH
+  // SAFETY FETCH (za POST/GET JSON)
   async function safeFetch(url, options = {}) {
     try {
       const r = await fetch(url, options);
@@ -29,23 +29,23 @@ export default async function handler(req, res) {
   // ============ CANCEL HANDLER =============
   if (req.method === "GET" && req.query.action === "cancel") {
     const id = req.query.bookingId;
-    const resp = await safeFetch(`${GOOGLE_SCRIPT_URL}?action=cancel&bookingId=${id}`);
 
-    let msg = "Termin uspešno otkazan.";
-    if (!resp.ok || !resp.data?.ok) msg = "Greška prilikom otkazivanja.";
+    // Direktno fetch GAS i uzmi plain text
+    const upstream = await fetch(
+      `${GOOGLE_SCRIPT_URL}?action=cancel&bookingId=${id}`
+    );
+    const text = await upstream.text();
 
-    return res
-      .status(200)
-      .send(`
-        <html>
-          <body style="font-family: Arial; padding: 40px;">
-            <h2>${msg}</h2>
-          </body>
-        </html>
-      `);
+    return res.status(200).send(`
+      <html>
+        <body style="font-family: Arial; padding: 40px;">
+          <h2>${text}</h2>
+        </body>
+      </html>
+    `);
   }
 
-  // ============ GET (slots, slotsSummary, itd.) =============
+  // ============ GET (slots, slotsSummary, itd.) ============
   if (req.method === "GET") {
     const query = new URLSearchParams(req.query).toString();
     const resp = await safeFetch(`${GOOGLE_SCRIPT_URL}?${query}`);
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
     return res.status(200).json(resp.data);
   }
 
-  // ============ POST (rezervacija) =============
+  // ============ POST (rezervacija) ============
   if (req.method === "POST") {
     const resp = await safeFetch(GOOGLE_SCRIPT_URL, {
       method: "POST",
@@ -66,5 +66,6 @@ export default async function handler(req, res) {
     return res.status(200).json(resp.data);
   }
 
+  // ============ DEFAULT ============
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
