@@ -83,22 +83,23 @@ export default async function handler(req, res) {
   }
 
   // -------- POST Handler (booking) --------
-  if (req.method === "POST") {
-    const { name, email, phone, service, barber, dateStr, timeStr } = req.body || {};
+if (req.method === "POST") {
+  const { name, email, phone, service, barber, dateStr, timeStr } = req.body || {};
 
-    if (!name || !email || !phone || !service || !barber || !dateStr || !timeStr) {
-      return res.status(400).json({ ok: false, error: "Nedostaju obavezna polja" });
-    }
-
-    const resp = await safeFetchJSON(GOOGLE_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req.body),
-    });
-
-    if (!resp.ok) return res.status(502).json(resp);
-    return res.status(200).json(resp.data);
+  if (!name || !email || !phone || !service || !barber || !dateStr || !timeStr) {
+    return res.status(400).json({ ok: false, error: "Nedostaju obavezna polja" });
   }
+
+  const resp = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?action=create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req.body),
+  });
+
+  if (!resp.ok) return res.status(502).json(resp);
+  return res.status(200).json(resp.data);
+}
+
 
   // -------- Default --------
   return res.status(405).json({ ok: false, error: "Method not allowed" });
