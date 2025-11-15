@@ -1,70 +1,75 @@
-export default async function handler(req, res) {
-  const GOOGLE_SCRIPT_URL =
-    "https://script.google.com/macros/s/AKfycbz_Utqg-o26GR5Hjuqux-YsD0Sw3SteYFupKOXdVGK0czjN9Bebv91I7xZb3hjx1AkU/exec";
+// /api/index.js
 
-  // -------- CORS --------
-  res.setHeader("Access-Control-Allow-Origin", "*");
+const GOOGLE_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbz_Utqg-o26GR5Hjuqux-YsD0Sw3SteYFupKOXdVGK0czjN9Bebv91I7xZb3hjx1AkU/exec";
+
+// CORS
+const ALLOWED_ORIGIN = "*"; // promeni u domen Framer sajta kada deployuješ
+
+
+// -----------------------------------------
+// Helper: Bezbedan JSON fetch iz GAS-a
+// -----------------------------------------
+async function safeFetchJSON(url, options = {}) {
+  try {
+    const r = await fetch(url, options);
+    const text = await r.text();
+
+    // 🔹 1) probaj direktan JSON
+    try {
+      return { ok: true, data: JSON.parse(text), raw: text };
+    } catch (e) {}
+
+    // 🔹 2) probaj izdvojiti JSON iz HTML (GAS ponekad doda <script> / <pre>)
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        return { ok: true, data: JSON.parse(match[0]), raw: text };
+      } catch (e) {}
+    }
+
+    return { ok: false, error: "Upstream not JSON", raw: text };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+
+// -----------------------------------------
+// API Handler
+// -----------------------------------------
+export default async function handler(req, res) {
+  // CORS headers
+  res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  // -------- Helpers --------
-  async function safeFetchJSON(url, options = {}) {
-    try {
-      const r = await fetch(url, options);
-      const text = await r.text();
-      try {
-        const json = JSON.parse(text);
-        return { ok: true, data: json };
-      } catch {
-        return { ok: false, error: "Upstream not JSON", raw: text };
-      }
-    } catch (e) {
-      return { ok: false, error: e.message || "Fetch error" };
-    }
-  }
 
-  async function safeFetchText(url, options = {}) {
-    try {
-      const r = await fetch(url, options);
-      const text = await r.text();
-      return { ok: true, text };
-    } catch (e) {
-      return { ok: false, error: e.message || "Fetch error" };
-    }
-  }
-
-  // -------- CANCEL Handler --------
-  if (req.method === "GET" && req.query.action === "cancel") {
-    const bookingId = req.query.bookingId;
-    if (!bookingId) {
-      return res.status(400).send(`
-        <html><body style="font-family:Arial;padding:40px;">
-          <h2>❌ Nedostaje bookingId</h2>
-        </body></html>
-      `);
-    }
-
-    const resp = await safeFetchText(`${GOOGLE_SCRIPT_URL}?action=cancel&bookingId=${bookingId}`);
-    let msg = "✅ Termin uspešno otkazan.";
-    if (!resp.ok) msg = "⚠️ Greška prilikom otkazivanja.";
-
-    return res.status(200).send(`
-      <html>
-        <body style="font-family: Arial; padding: 40px;">
-          <h2>${msg}</h2>
-        </body>
-      </html>
-    `);
-  }
-
-  // -------- GET Handler (slots, etc.) --------
+  // -----------------------------------------
+  // GET — SLots / Cancel / Get Booking Info
+  // -----------------------------------------
   if (req.method === "GET") {
-    // 🔥 Ovo 100% radi na Vercelu — sigurno parsira query string
     const params = new URL(req.url, `http://${req.headers.host}`).searchParams;
     const action = params.get("action");
 
-    // Validacija slotova
+    // ❗ CANCEL
+    if (action === "cancel") {
+      const bookingId = params.get("bookingId");
+      if (!bookingId) return res.status(400).json({ ok: false, error: "Nedostaje bookingId" });
+
+      const url = `${GOOGLE_SCRIPT_URL}?action=cancel&bookingId=${bookingId}`;
+      const upstream = await safeFetchJSON(url);
+
+      if (!upstream.ok) {
+        return res.status(502).json({ ok: false, error: "GAS error", detail: upstream.raw });
+      }
+
+      return res.status(200).json(upstream.data);
+    }
+
+    // ❗ SLOTS
     if (action === "slots") {
       const barber = params.get("barber");
       const date = params.get("date");
@@ -74,33 +79,44 @@ export default async function handler(req, res) {
       }
     }
 
-    // Prosleđivanje GAS-u
+    // Forward to GAS
     const queryString = params.toString();
-    const resp = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?${queryString}`);
+    const upstream = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?${queryString}`);
 
-    if (!resp.ok) return res.status(502).json(resp);
-    return res.status(200).json(resp.data);
+    if (!upstream.ok) return res.status(502).json(upstream);
+
+    return res.status(200).json(upstream.data);
   }
 
-  // -------- POST Handler (booking) --------
-if (req.method === "POST") {
-  const { name, email, phone, service, barber, dateStr, timeStr } = req.body || {};
 
-  if (!name || !email || !phone || !service || !barber || !dateStr || !timeStr) {
-    return res.status(400).json({ ok: false, error: "Nedostaju obavezna polja" });
+  // -----------------------------------------
+  // POST — CREATE BOOKING
+  // -----------------------------------------
+  if (req.method === "POST") {
+    const payload = req.body || {};
+    const { name, email, phone, service, barber, dateStr, timeStr } = payload;
+
+    // Validacija
+    if (!name || !email || !phone || !service || !barber || !dateStr || !timeStr) {
+      return res.status(400).json({ ok: false, error: "Nedostaju obavezna polja" });
+    }
+
+    const upstream = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?action=create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!upstream.ok) {
+      return res.status(502).json({ ok: false, error: "Upstream error", detail: upstream.raw });
+    }
+
+    return res.status(200).json(upstream.data);
   }
 
-  const resp = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?action=create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req.body),
-  });
 
-  if (!resp.ok) return res.status(502).json(resp);
-  return res.status(200).json(resp.data);
-}
-
-
-  // -------- Default --------
+  // -----------------------------------------
+  // DEFAULT
+  // -----------------------------------------
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
