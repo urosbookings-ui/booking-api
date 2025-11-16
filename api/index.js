@@ -6,7 +6,6 @@ const GOOGLE_SCRIPT_URL =
 // CORS
 const ALLOWED_ORIGIN = "*"; // promeni u domen Framer sajta kada deployuješ
 
-
 // -----------------------------------------
 // Helper: Bezbedan JSON fetch iz GAS-a
 // -----------------------------------------
@@ -34,7 +33,6 @@ async function safeFetchJSON(url, options = {}) {
   }
 }
 
-
 // -----------------------------------------
 // API Handler
 // -----------------------------------------
@@ -46,48 +44,44 @@ export default async function handler(req, res) {
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
+  const params = new URL(req.url, `http://${req.headers.host}`).searchParams;
+  const action = params.get("action");
 
   // -----------------------------------------
-  // GET — SLots / Cancel / Get Booking Info
+  // GET
   // -----------------------------------------
   if (req.method === "GET") {
-    const params = new URL(req.url, `http://${req.headers.host}`).searchParams;
-    const action = params.get("action");
-
-    // ❗ CANCEL
+    // ❗ CANCEL — vrati plain text
     if (action === "cancel") {
       const bookingId = params.get("bookingId");
-      if (!bookingId) return res.status(400).json({ ok: false, error: "Nedostaje bookingId" });
+      if (!bookingId) return res.status(400).send("Nedostaje bookingId");
 
-      const url = `${GOOGLE_SCRIPT_URL}?action=cancel&bookingId=${bookingId}`;
-      const upstream = await safeFetchJSON(url);
+      const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=cancel&bookingId=${bookingId}`);
+      const text = await response.text();
 
-      if (!upstream.ok) {
-        return res.status(502).json({ ok: false, error: "GAS error", detail: upstream.raw });
-      }
+      res.setHeader("Content-Type", "text/plain");
+      return res.status(200).send(text);
+    }
 
+    // ❗ SLOTS — prosledi GAS i vrati JSON
+    if (action === "slots" || action === "getAvailableSlots") {
+      const barber = params.get("barber");
+      const date = params.get("date") || params.get("dateStr");
+      if (!barber || !date) return res.status(400).json({ ok: false, error: "Nedostaje barber ili date" });
+
+      const queryString = params.toString();
+      const upstream = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?${queryString}`);
+
+      if (!upstream.ok) return res.status(502).json({ ok: false, error: "GAS error", detail: upstream.raw });
       return res.status(200).json(upstream.data);
     }
 
-    // ❗ SLOTS
-    if (action === "slots") {
-      const barber = params.get("barber");
-      const date = params.get("date");
-
-      if (!barber || !date) {
-        return res.status(400).json({ ok: false, error: "Nedostaje barber ili date" });
-      }
-    }
-
-    // Forward to GAS
+    // ❗ Ostalo — prosledi GAS
     const queryString = params.toString();
     const upstream = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?${queryString}`);
-
-    if (!upstream.ok) return res.status(502).json(upstream);
-
+    if (!upstream.ok) return res.status(502).json({ ok: false, error: "GAS error", detail: upstream.raw });
     return res.status(200).json(upstream.data);
   }
-
 
   // -----------------------------------------
   // POST — CREATE BOOKING
@@ -96,7 +90,6 @@ export default async function handler(req, res) {
     const payload = req.body || {};
     const { name, email, phone, service, barber, dateStr, timeStr } = payload;
 
-    // Validacija
     if (!name || !email || !phone || !service || !barber || !dateStr || !timeStr) {
       return res.status(400).json({ ok: false, error: "Nedostaju obavezna polja" });
     }
@@ -107,13 +100,9 @@ export default async function handler(req, res) {
       body: JSON.stringify(payload),
     });
 
-    if (!upstream.ok) {
-      return res.status(502).json({ ok: false, error: "Upstream error", detail: upstream.raw });
-    }
-
+    if (!upstream.ok) return res.status(502).json({ ok: false, error: "Upstream error", detail: upstream.raw });
     return res.status(200).json(upstream.data);
   }
-
 
   // -----------------------------------------
   // DEFAULT
