@@ -51,16 +51,20 @@ export default async function handler(req, res) {
   // GET
   // -----------------------------------------
   if (req.method === "GET") {
-    // ❗ CANCEL — vrati plain text
+    // ❗ CANCEL — vrati plain text direktno
     if (action === "cancel") {
       const bookingId = params.get("bookingId");
       if (!bookingId) return res.status(400).send("Nedostaje bookingId");
 
-      const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=cancel&bookingId=${bookingId}`);
-      const text = await response.text();
+      try {
+        const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=cancel&bookingId=${bookingId}`);
+        const text = await response.text();
 
-      res.setHeader("Content-Type", "text/plain");
-      return res.status(200).send(text);
+        res.setHeader("Content-Type", "text/plain");
+        return res.status(200).send(text);
+      } catch (err) {
+        return res.status(502).send("GAS error: " + err.message);
+      }
     }
 
     // ❗ SLOTS — prosledi GAS i vrati JSON
@@ -76,7 +80,7 @@ export default async function handler(req, res) {
       return res.status(200).json(upstream.data);
     }
 
-    // ❗ Ostalo — prosledi GAS
+    // ❗ Ostalo GET — prosledi GAS
     const queryString = params.toString();
     const upstream = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?${queryString}`);
     if (!upstream.ok) return res.status(502).json({ ok: false, error: "GAS error", detail: upstream.raw });
