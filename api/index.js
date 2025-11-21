@@ -1,7 +1,7 @@
 // /api/index.js
 
 const GOOGLE_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbyGyBfIfplCcp9N3bpeY_Qg7K-L-qvZBuhmi5DYw8-lXDb3Y4tCmJOqMGJdxDxH1xNZ/exec";
+  "https://script.google.com/macros/s/AKfycbxGrTefJIb-17dJQQZAEVRF7SJQzkdemy4oc3Kei-GXczjHNv5_14Ced5Hdv-U373Iu/exec";
 
 // CORS
 const ALLOWED_ORIGIN = "*"; // promeni u domen Framer sajta kada deployuješ
