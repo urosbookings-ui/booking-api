@@ -1,43 +1,36 @@
 // /api/index.js
 
-const GOOGLE_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbxE7aKsATSGirOfsfLQ4ExcU935UmEjjiudHE4VplW5PR3RZ4O86JL_coeyh6PPAOkW/exec";
+// ❗ PROMENI OVO U ENVIRONMENT VARIJABLU U VERCELU (Settings -> Environment Variables)
+// Ili privremeno ostavi hardcoded ako testiraš
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxE7aKsATSGirOfsfLQ4ExcU935UmEjjiudHE4VplW5PR3RZ4O86JL_coeyh6PPAOkW/exec"; 
 
-// CORS
-const ALLOWED_ORIGIN = "*"; // promeni u domen Framer sajta kada deployuješ
+const ALLOWED_ORIGIN = "*"; // Kada završiš sajt, stavi npr: "https://mojsajt.framer.website"
 
-// -----------------------------------------
-// Helper: Bezbedan JSON fetch iz GAS-a
-// -----------------------------------------
-async function safeFetchJSON(url, options = {}) {
+// --- Helper ---
+async function fetchGAS(params, options = {}) {
+  const url = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
   try {
     const r = await fetch(url, options);
     const text = await r.text();
-
-    // 🔹 1) probaj direktan JSON
-    try {
-      return { ok: true, data: JSON.parse(text), raw: text };
-    } catch (e) {}
-
-    // 🔹 2) probaj izdvojiti JSON iz HTML (GAS ponekad doda <script> / <pre>)
-    const match = text.match(/\{[\s\S]*\}/);
-    if (match) {
-      try {
-        return { ok: true, data: JSON.parse(match[0]), raw: text };
-      } catch (e) {}
+    
+    // GAS ponekad vrati HTML grešku (npr. Google Login)
+    if (text.includes("<!DOCTYPE html") || text.includes("Google Docs")) {
+       return { ok: false, error: "GAS HTML Error", raw: text };
     }
 
-    return { ok: false, error: "Upstream not JSON", raw: text };
-  } catch (err) {
-    return { ok: false, error: err.message };
+    try {
+      return { ok: true, data: JSON.parse(text) };
+    } catch (e) {
+      // Ako nije JSON, možda je plain text (za cancel)
+      return { ok: true, text: text, isText: true };
+    }
+  } catch (e) {
+    return { ok: false, error: e.message };
   }
 }
 
-// -----------------------------------------
-// API Handler
-// -----------------------------------------
 export default async function handler(req, res) {
-  // CORS headers
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -47,69 +40,60 @@ export default async function handler(req, res) {
   const params = new URL(req.url, `http://${req.headers.host}`).searchParams;
   const action = params.get("action");
 
-  // -----------------------------------------
-  // GET
-  // -----------------------------------------
+  // --- GET REQUESTS ---
   if (req.method === "GET") {
-    // ❗ CANCEL — vrati plain text direktno
+    
+    // 1. OTKAZIVANJE (Vraća plain text)
     if (action === "cancel") {
-      const bookingId = params.get("bookingId");
-      if (!bookingId) return res.status(400).send("Nedostaje bookingId");
-
-      try {
-        const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=cancel&bookingId=${bookingId}`);
-        const text = await response.text();
-
-        res.setHeader("Content-Type", "text/plain");
-        return res.status(200).send(text);
-      } catch (err) {
-        return res.status(502).send("GAS error: " + err.message);
+      const upstream = await fetchGAS(params);
+      if (upstream.isText) {
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        return res.status(200).send(upstream.text);
       }
+      return res.status(500).send("Greška pri otkazivanju.");
     }
 
-    // ❗ SLOTS — prosledi GAS i vrati JSON
-    if (action === "slots" || action === "getAvailableSlots") {
-      const barber = params.get("barber");
-      const date = params.get("date") || params.get("dateStr");
-      if (!barber || !date) return res.status(400).json({ ok: false, error: "Nedostaje barber ili date" });
-
-      const queryString = params.toString();
-      const upstream = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?${queryString}`);
-
-      if (!upstream.ok) return res.status(502).json({ ok: false, error: "GAS error", detail: upstream.raw });
+    // 2. NOVO: DOBAVI USLUGE ZA FRIZERA (Frontend zove ovo kad se izabere frizer)
+    // Primer poziva: /api?action=getServices&barber=Uros
+    if (action === "getServices") {
+      const upstream = await fetchGAS(params);
+      if (!upstream.ok) return res.status(502).json(upstream);
       return res.status(200).json(upstream.data);
     }
 
-    // ❗ Ostalo GET — prosledi GAS
-    const queryString = params.toString();
-    const upstream = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?${queryString}`);
-    if (!upstream.ok) return res.status(502).json({ ok: false, error: "GAS error", detail: upstream.raw });
-    return res.status(200).json(upstream.data);
-  }
-
-  // -----------------------------------------
-  // POST — CREATE BOOKING
-  // -----------------------------------------
-  if (req.method === "POST") {
-    const payload = req.body || {};
-    const { name, email, phone, service, barber, dateStr, timeStr } = payload;
-
-    if (!name || !email || !phone || !service || !barber || !dateStr || !timeStr) {
-      return res.status(400).json({ ok: false, error: "Nedostaju obavezna polja" });
+    // 3. SLOBODNI TERMINI
+    if (action === "slots" || action === "getAvailableSlots") {
+      const upstream = await fetchGAS(params);
+      if (!upstream.ok) return res.status(502).json(upstream);
+      return res.status(200).json(upstream.data);
     }
 
-    const upstream = await safeFetchJSON(`${GOOGLE_SCRIPT_URL}?action=create`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!upstream.ok) return res.status(502).json({ ok: false, error: "Upstream error", detail: upstream.raw });
-    return res.status(200).json(upstream.data);
+    return res.status(404).json({ ok: false, error: "Unknown action" });
   }
 
-  // -----------------------------------------
-  // DEFAULT
-  // -----------------------------------------
-  return res.status(405).json({ ok: false, error: "Method not allowed" });
+  // --- POST REQUEST (CREATE BOOKING) ---
+  if (req.method === "POST") {
+    const payload = req.body || {};
+    
+    // Prosleđujemo POST ka GAS-u
+    // Moramo koristiti parametre u URL-u za 'action', a body za podatke
+    const postParams = new URLSearchParams();
+    postParams.append("action", "create");
+
+    try {
+      const r = await fetch(`${GOOGLE_SCRIPT_URL}?${postParams.toString()}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const text = await r.text();
+      const data = JSON.parse(text);
+      
+      return res.status(200).json(data);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: "Proxy error", detail: e.message });
+    }
+  }
+
+  return res.status(405).json({ error: "Method not allowed" });
 }
