@@ -2,7 +2,7 @@
 
 // ❗ PROMENI OVO U ENVIRONMENT VARIJABLU U VERCELU (Settings -> Environment Variables)
 // Ili privremeno ostavi hardcoded ako testiraš
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzaS-VSXhxwYbny2Uc-Dcn-lq-KoMfqMb22Tt7LV_yNZ1C1P-KVy5KaMeod0hqTlfu4/exec"; 
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz8eo2MNBeI_awxn2CwWzceoyPaJqhI2jGJFOhve1oX6C8eJcNqPf2lzVag_PXzwMVq/exec"; 
 
 const ALLOWED_ORIGIN = "*"; // Kada završiš sajt, stavi npr: "https://mojsajt.framer.website"
 
