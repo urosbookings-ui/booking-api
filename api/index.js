@@ -78,7 +78,8 @@ export default async function handler(req, res) {
     }
     
     // Vraća se greška 404 samo ako je 'action' definisan ali nije prepoznat
-    return res.status(404).json({ ok: false, error: "Unknown action" });
+    // ...
+    return res.status(404).json({ ok: false, error: "OVO JE NOVA VERZIJA KODA, ALI AKCIJA NIJE PREPOZNATA" });
   }
 
   // --- POST REQUEST (CREATE BOOKING) ---
